@@ -1,9 +1,11 @@
 package ru.tinkoff.player
 
 import android.net.Uri
+import androidx.compose.runtime.Stable
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -11,6 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+@Stable
 class PlayerViewModel(
     private val samplesExtractor: SamplesExtractor
 ) : ViewModel() {
@@ -29,7 +32,7 @@ class PlayerViewModel(
         //todo cancellation
         viewModelScope.launch {
             val samples = samplesExtractor.samples(result)
-            _state.update { it.copy(samples = samples) }
+            _state.update { it.copy(samples = samples.toList().toImmutableList()) }
         }
     }
 
@@ -41,7 +44,7 @@ class PlayerViewModel(
 //suppress because comparing by reference in this case is enough
 @Suppress("ArrayInDataClass")
 data class PlayerState(
-    val samples: IntArray? = null,
+    val samples: ImmutableList<Int>? = null,
     val contentUri: Uri? = null,
     val isPlaying: Boolean = true
 )

@@ -1,8 +1,7 @@
-@file:OptIn(ExperimentalPermissionsApi::class, ExperimentalTime::class)
+@file:OptIn(ExperimentalTime::class)
 
 package ru.tinkoff.player.screen
 
-import android.Manifest
 import android.media.MediaPlayer
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -29,8 +28,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.google.accompanist.permissions.ExperimentalPermissionsApi
-import com.google.accompanist.permissions.rememberPermissionState
 import kotlinx.coroutines.delay
 import ru.tinkoff.player.Dependencies
 import ru.tinkoff.player.ui.theme.PlayerTheme
@@ -45,7 +42,23 @@ fun PlayerScreen(dependencies: Dependencies) {
             color = MaterialTheme.colorScheme.background
         ) {
             val context = LocalContext.current
+            var isPlaying by remember { mutableStateOf(false) }
+
             val mediaPlayer = remember { MediaPlayer() }
+            val mediaPlayerSeekTo = remember<(Int) -> Unit>(mediaPlayer) {
+                { mediaPlayer.seekTo(it) }
+            }
+            val mediaPlayerClickStart = remember(mediaPlayer) {
+                {
+                    isPlaying = if (mediaPlayer.isPlaying) {
+                        mediaPlayer.pause()
+                        false
+                    } else {
+                        mediaPlayer.start()
+                        true
+                    }
+                }
+            }
             val viewModel = viewModel(initializer = { dependencies.getPlayerViewModel() })
 
             val state by viewModel.state.collectAsState()
@@ -53,7 +66,6 @@ fun PlayerScreen(dependencies: Dependencies) {
             val samples = state.samples
             val contentUri = state.contentUri
             var mediaPlayerCurrentPosition by remember { mutableStateOf(0) }
-            var isPlaying by remember { mutableStateOf(false) }
 
             LaunchedEffect(mediaPlayer) {
                 mediaPlayer.setOnCompletionListener { isPlaying = false }
@@ -66,7 +78,9 @@ fun PlayerScreen(dependencies: Dependencies) {
             }
 
             val launcher =
-                rememberLauncherForActivityResult(contract = ActivityResultContracts.GetContent()) { result ->
+                rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.GetContent()
+                ) { result ->
                     viewModel.onTrackPicked(result)
                 }
 
@@ -88,62 +102,42 @@ fun PlayerScreen(dependencies: Dependencies) {
                     verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    CanvasWaveSeekBar(
-                        mediaPlayerCurrentPosition = mediaPlayerCurrentPosition,
-                        mediaPlayerDuration = mediaPlayer.duration,
-                        samples = samples,
-                        onPositionChange = {
-                            mediaPlayer.seekTo(it)
-                            mediaPlayerCurrentPosition = it
-                        }
-                    )
 
-                    val storagePermissionState = rememberPermissionState(
-                        Manifest.permission.READ_EXTERNAL_STORAGE
-                    )
-                    when (storagePermissionState.hasPermission) {
-                        true -> {
-                            if (isPlaying) {
-                                LaunchedEffect(Unit) {
-                                    while (mediaPlayer.isPlaying) {
-                                        mediaPlayerCurrentPosition =
-                                            mediaPlayer.currentPosition
-                                        delay(1.seconds / 30)
-                                    }
-                                }
+                    if (!samples.isNullOrEmpty()) {
+                        val barsCount = 50
+                        val progressByPlayer =
+                            (mediaPlayerCurrentPosition.toFloat() / mediaPlayer.duration * barsCount).toInt()
+                        CanvasWaveSeekBar(
+                            mediaPlayerDuration = mediaPlayer.duration,
+                            onPositionChange = {
+                                mediaPlayerSeekTo(it)
+                                mediaPlayerCurrentPosition = it
+                            },
+                            barsCount = barsCount,
+                            barsRelativeHeights = remember(samples, barsCount) {
+                                barsRelativeHeights(samples, barsCount)
+                            },
+                            progressByPlayer = progressByPlayer
+                        )
+                    }
+                    if (isPlaying) {
+                        LaunchedEffect(Unit) {
+                            while (mediaPlayer.isPlaying) {
+                                mediaPlayerCurrentPosition =
+                                    mediaPlayer.currentPosition
+                                delay(1.seconds / 30)
                             }
+                        }
+                    }
 
-                            Button(
-                                onClick = {
-                                    if (mediaPlayer.isPlaying) {
-                                        mediaPlayer.pause()
-                                        isPlaying = false
-                                        return@Button
-                                    }
-                                    mediaPlayer.start()
-                                    isPlaying = true
-                                }) {
-                                if (isPlaying)
-                                    Text(text = "Pause")
-                                else
-                                    Text(text = "Play")
-                            }
-                        }
-                        false -> {
-                            Column {
-                                val textToShow =
-                                    if (storagePermissionState.shouldShowRationale) {
-                                        "Please grant the permission."
-                                    } else {
-                                        "Storage permission required for this feature to be available. " +
-                                                "Please grant the permission"
-                                    }
-                                Text(textToShow)
-                                Button(onClick = { storagePermissionState.launchPermissionRequest() }) {
-                                    Text("Request permission")
-                                }
-                            }
-                        }
+                    Button(
+                        onClick = {
+                            mediaPlayerClickStart()
+                        }) {
+                        if (isPlaying)
+                            Text(text = "Pause")
+                        else
+                            Text(text = "Play")
                     }
                 }
             }
@@ -156,7 +150,7 @@ fun PlayerScreen(dependencies: Dependencies) {
                 Button(
                     modifier = Modifier.wrapContentSize(),
                     onClick = {
-                        launcher.launch("*/*")
+                        launcher.launch("audio/*")
                     }) {
                     Text(text = "Pick a song")
                 }
