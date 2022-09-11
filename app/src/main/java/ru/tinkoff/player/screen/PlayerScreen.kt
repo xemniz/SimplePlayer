@@ -17,11 +17,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ru.tinkoff.player.Dependencies
 import ru.tinkoff.player.ui.theme.PlayerTheme
-import kotlin.time.ExperimentalTime
 
 @Composable
 fun PlayerScreen(dependencies: Dependencies) {
@@ -42,6 +40,12 @@ fun PlayerScreen(dependencies: Dependencies) {
                 viewModel.loadUri(contentUri)
             }
 
+            DisposableEffect(Unit){
+                onDispose {
+                    viewModel.resetPlayer()
+                }
+            }
+
             val launcher =
                 rememberLauncherForActivityResult(
                     contract = ActivityResultContracts.GetContent()
@@ -55,7 +59,7 @@ fun PlayerScreen(dependencies: Dependencies) {
                 exit = fadeOut()
             ) {
                 BackHandler {
-                    viewModel.pickAnotherTrack()
+                    viewModel.resetPlayer()
                 }
                 Column(
                     modifier = Modifier.fillMaxSize(),
@@ -64,11 +68,11 @@ fun PlayerScreen(dependencies: Dependencies) {
                 ) {
 
                     if (!samples.isNullOrEmpty()) {
-                        val barsCount = 50
+                        val barsCount = 500
                         val progressByPlayer =
-                            (state.playerCurrentPosition.toFloat() / state.duration * barsCount).toInt()
+                            (state.playerState.playerCurrentPosition.toFloat() / state.playerState.duration * barsCount).toInt()
                         CanvasWaveSeekBar(
-                            mediaPlayerDuration = state.duration,
+                            mediaPlayerDuration = state.playerState.duration,
                             onPositionChange = {
                                 viewModel.seekTo(it)
                             },
@@ -84,7 +88,7 @@ fun PlayerScreen(dependencies: Dependencies) {
                         onClick = {
                             viewModel.playPause()
                         }) {
-                        if (state.isPlaying)
+                        if (state.playerState.isPlaying)
                             Text(text = "Pause")
                         else
                             Text(text = "Play")
