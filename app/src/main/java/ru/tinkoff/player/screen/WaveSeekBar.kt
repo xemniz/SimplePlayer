@@ -33,8 +33,8 @@ fun CanvasWaveSeekBar(
         mutableStateOf(0)
     }
 
-    var progressWhileDragging: Int? by remember { mutableStateOf(null) }
-    val progressToShow = progressWhileDragging ?: (progressByPlayer)
+    var progressWhileDragging: Float? by remember { mutableStateOf(null) }
+    val progressToShow = progressWhileDragging?.let { it * barsCount } ?: (progressByPlayer)
 
     val viewConfiguration = LocalViewConfiguration.current
 
@@ -47,7 +47,7 @@ fun CanvasWaveSeekBar(
             .pointerInput(barsRelativeHeights) {
                 detectTapGestures(
                     onPress = {
-                        progressWhileDragging = (it.x / width * barsCount).toInt()
+                        progressWhileDragging = it.x / width
                         slopConsumed = false
                     },
                     onTap = {
@@ -67,11 +67,9 @@ fun CanvasWaveSeekBar(
                         val slopAbs = viewConfiguration.touchSlop
                         val slop = if (delta > 0) slopAbs else -slopAbs
 
-                        progressWhileDragging =
-                            ((progressWhileDragging!! + slop / width) * barsCount).toInt()
+                        progressWhileDragging = progressWhileDragging!! + slop / width
                     }
-                    progressWhileDragging =
-                        ((progressWhileDragging!! + delta / width) * barsCount).toInt()
+                    progressWhileDragging = progressWhileDragging!! + delta / width
                 },
                 onDragStopped = {
                     val progress = progressWhileDragging!!
